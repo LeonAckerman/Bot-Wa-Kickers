@@ -13,7 +13,6 @@ const toxicKeywords = [
 const strikeMap = {};
 
 const { useSingleFileAuthState } = require('@whiskeysockets/baileys');
-const { state, saveState } = useSingleFileAuthState('./auth_info.json');
 
 async function startSock() {
   const sock = makeWASocket({
