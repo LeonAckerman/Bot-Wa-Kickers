@@ -29,8 +29,6 @@ if (!isAdmin && chat.isGroup) {
 }
 return;
 
-}
-
 // Cek toxic const isToxic = toxicKeywords.some((word) => messageText.includes(word)); if (isToxic) { const userId = sender.id._serialized; if (!strikeMap[userId]) strikeMap[userId] = 0; strikeMap[userId] += 1;
 
 console.log(`Toxic terdeteksi dari ${userId}, strike ke-${strikeMap[userId]}`);
