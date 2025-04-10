@@ -1,73 +1,51 @@
-// File: index.js
+const { default: makeWASocket, useSingleFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
+const { Boom } = require("@hapi/boom");
+const P = require("pino");
 
-const { default: makeWASocket, useSingleFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const { Boom } = require('@hapi/boom');
-const fs = require('fs');
+const { state, saveState } = useSingleFileAuthState("./auth_info.json");
 
-const spamKeywords = ['http://', 'https://', 'promo', 'join grup', 'klik link'];
-const toxicKeywords = [
-  'bodoh', 'tolol', 'anjing', 'bangsat', 'goblok', 'idiot', 'brengsek', 'kontol',
-  'memek', 'ngentot', 'cupu', 'cacat', 'babi', 'anjir', 'sinting', 'tol', 'asu',
-  'plg', 'bacot', 'tai'
-];
+const sock = makeWASocket({
+  auth: state,
+  printQRInTerminal: true,
+  logger: P({ level: "silent" })
+});
+
+sock.ev.on("creds.update", saveState);
+
+const spamKeywords = ["http://", "https://", "promo", "join grup", "klik link"];
+const toxicKeywords = ["bodoh", "tolol", "anjing", "bangsat", "goblok", "idiot", "brengsek", "kontol", "memek", "ngentot", "cupu", "cacat", "babi", "anjir", "sinting", "tol", "asu", "plg", "bacot", "tai"];
+
 const strikeMap = {};
 
-async function startSock() {
-  const sock = makeWASocket({
-    auth: state,
-    printQRInTerminal: true
-  });
+sock.ev.on("messages.upsert", async ({ messages }) => {
+  const msg = messages[0];
+  if (!msg.message || !msg.key.remoteJid.endsWith("@g.us")) return;
 
-  sock.ev.on('creds.update', saveState);
+  const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
+  const lowerText = text.toLowerCase();
+  const sender = msg.key.participant || msg.key.remoteJid;
 
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
-    const msg = messages[0];
-    if (!msg.message || !msg.key.remoteJid.endsWith('@g.us')) return;
+  const metadata = await sock.groupMetadata(msg.key.remoteJid);
+  const isAdmin = metadata.participants.find(p => p.id === sender && p.admin);
 
-    const senderId = msg.key.participant || msg.key.remoteJid;
-    const from = msg.key.remoteJid;
-    const messageText = msg.message.conversation?.toLowerCase() || '';
+  // Spam check
+  const isSpam = spamKeywords.some(word => lowerText.includes(word));
+  if (isSpam && !isAdmin) {
+    await sock.groupParticipantsUpdate(msg.key.remoteJid, [sender], "remove");
+    await sock.sendMessage(msg.key.remoteJid, { text: `@${sender.split("@")[0]} dikeluarkan karena spam.`, mentions: [sender] });
+    return;
+  }
 
-    // Cek spam
-    const isSpam = spamKeywords.some(word => messageText.includes(word));
-    if (isSpam) {
-      console.log(`Spam terdeteksi dari ${senderId}`);
-      await sock.groupParticipantsUpdate(from, [senderId], 'remove');
-      await sock.sendMessage(from, { text: `@${senderId.split('@')[0]} dikeluarkan karena spam.`, mentions: [senderId] });
-      return;
+  // Toxic check
+  const isToxic = toxicKeywords.some(word => lowerText.includes(word));
+  if (isToxic && !isAdmin) {
+    strikeMap[sender] = (strikeMap[sender] || 0) + 1;
+    if (strikeMap[sender] >= 3) {
+      await sock.groupParticipantsUpdate(msg.key.remoteJid, [sender], "remove");
+      await sock.sendMessage(msg.key.remoteJid, { text: `@${sender.split("@")[0]} dikeluarkan karena toxic 3x.`, mentions: [sender] });
+      delete strikeMap[sender];
+    } else {
+      await sock.sendMessage(msg.key.remoteJid, { text: `@${sender.split("@")[0]} jangan toxic ya! Strike ${strikeMap[sender]}/3`, mentions: [sender] });
     }
-
-    // Cek toxic
-    const isToxic = toxicKeywords.some(word => messageText.includes(word));
-    if (isToxic) {
-      if (!strikeMap[senderId]) strikeMap[senderId] = 0;
-      strikeMap[senderId] += 1;
-
-      console.log(`Toxic terdeteksi dari ${senderId}, strike ke-${strikeMap[senderId]}`);
-
-      if (strikeMap[senderId] >= 3) {
-        await sock.groupParticipantsUpdate(from, [senderId], 'remove');
-        await sock.sendMessage(from, { text: `@${senderId.split('@')[0]} dikeluarkan karena toxic 3x.`, mentions: [senderId] });
-        delete strikeMap[senderId];
-      } else {
-        await sock.sendMessage(from, { text: `@${senderId.split('@')[0]} jangan toxic ya! Strike ${strikeMap[senderId]}/3`, mentions: [senderId] });
-      }
-    }
-  });
-
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
-    if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error = new Boom(lastDisconnect?.error))?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log('Connection closed. Reconnecting...', shouldReconnect);
-      if (shouldReconnect) {
-        startSock();
-      }
-    } else if (connection === 'open') {
-      console.log('Bot siap memantau grup...');
-    }
-  });
-}
-
-startSock();
+  }
+});
