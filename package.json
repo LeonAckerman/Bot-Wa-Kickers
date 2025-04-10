@@ -1,12 +1,13 @@
 {
-  "name": "wa-spam-kicker",
+  "name": "wa-bot-kicker",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.5.0",
-    "@hapi/boom": "^10.0.1"
+    "@whiskeysockets/baileys": "^6.7.1",
+    "pino": "^8.0.0",
+    "@hapi/boom": "^10.0.0"
   }
 }
