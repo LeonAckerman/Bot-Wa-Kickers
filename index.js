@@ -5,12 +5,6 @@ const P = require('pino');
 
 const { state, saveState } = useSingleFileAuthState('./auth_info.json');
 
-const sock = makeWASocket({
-  auth: state,
-  printQRInTerminal: true,
-  logger: P({ level: 'silent' })
-});
-
 sock.ev.on('creds.update', saveState);
 
 const sock = makeWASocket({
