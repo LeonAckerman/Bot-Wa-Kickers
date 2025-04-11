@@ -1,5 +1,6 @@
-const makeWASocket = require('@whiskeysockets/baileys').default;
-const { useSingleFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const baileys = require('@whiskeysockets/baileys');
+const makeWASocket = baileys.default;
+const { useSingleFileAuthState, DisconnectReason } = baileys;
 const { Boom } = require('@hapi/boom');
 const P = require('pino');
 
