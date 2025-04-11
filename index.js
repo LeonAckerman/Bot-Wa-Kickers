@@ -1,8 +1,17 @@
-const { default: makeWASocket, useSingleFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
-const { Boom } = require("@hapi/boom");
-const P = require("pino");
+const makeWASocket = require('@whiskeysockets/baileys').default;
+const { useSingleFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { Boom } = require('@hapi/boom');
+const P = require('pino');
 
-const { state, saveState } = useSingleFileAuthState("./auth_info.json");
+const { state, saveState } = useSingleFileAuthState('./auth_info.json');
+
+const sock = makeWASocket({
+  auth: state,
+  printQRInTerminal: true,
+  logger: P({ level: 'silent' })
+});
+
+sock.ev.on('creds.update', saveState);
 
 const sock = makeWASocket({
   auth: state,
